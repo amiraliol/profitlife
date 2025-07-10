@@ -21,7 +21,7 @@ def save_users(users):
 users = load_users()
 
 # شناسه کانال رسمی
-OFFICIAL_CHANNEL_ID = -1001234567890  # جایگزین شود با آیدی واقعی کانال شما
+OFFICIAL_CHANNEL_ID = -1002443021723  # جایگزین شود با آیدی واقعی کانال شما
 
 # ساخت لینک یک‌بار مصرف برای عضویت در کانال
 def generate_invite_link(user_id):
@@ -39,7 +39,7 @@ MAIN_MENU = InlineKeyboardMarkup([
         InlineKeyboardButton("🎓 آموزش", callback_data='education')
     ],
     [
-        InlineKeyboardButton("🛟 ارتباط با پشتیبانی", url='https://t.me/YOUR_SUPPORT_USERNAME')
+        InlineKeyboardButton("🛟 ارتباط با پشتیبانی", url='https://t.me/melika_sadat1')
     ]
 ])
 
@@ -117,7 +117,7 @@ def forward_from_channel(update: Update, context: CallbackContext):
         broadcast_signal(message.text)
 
 # اجرای بات
-TOKEN = 'YOUR_BOT_TOKEN_HERE'
+TOKEN = '8133412407:AAER0aKfU0nbLmhUfn5bn-9vBhzaXPekYAY'
 updater = Updater(token=TOKEN, use_context=True)
 dp = updater.dispatcher
 
