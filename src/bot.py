@@ -23,6 +23,9 @@ users = load_users()
 # شناسه کانال رسمی
 OFFICIAL_CHANNEL_ID = -1002443021723  # جایگزین شود با آیدی واقعی کانال شما
 
+# شناسه ادمین ها (عددی)
+ADMIN_IDS = [123456789]  # آیدی عددی ادمین ها را اینجا قرار دهید
+
 # ساخت لینک یک‌بار مصرف برای عضویت در کانال
 def generate_invite_link(user_id):
     suffix = ''.join(random.choices(string.ascii_letters + string.digits, k=8))
@@ -70,7 +73,7 @@ def button_handler(update: Update, context: CallbackContext):
     elif query.data == 'profile':
         if user_id in users:
             u = users[user_id]
-            text = f"👤 پروفایل شما:\n📞 شماره: {u.get('phone')}\n🧑‍💼 نام: {u.get('name')}"
+            text = f"👤 پروفایل شما:\n📞 شماره: {u.get('phone')}\n🧑‍💼 نام: {u.get('name')}\n📦 دسترسی: {u.get('product', '---')}"
             query.edit_message_text(text=text, reply_markup=MAIN_MENU)
         else:
             query.edit_message_text("برای شروع ابتدا /start را بزنید.", reply_markup=MAIN_MENU)
@@ -80,6 +83,11 @@ def button_handler(update: Update, context: CallbackContext):
 
     elif query.data == 'education':
         query.edit_message_text("🎓 آموزش‌ها به‌زودی در دسترس خواهند بود. در کانال عضو باشید.", reply_markup=MAIN_MENU)
+
+    # پنل ادمین
+    elif query.data == 'admin_send_signal' and int(user_id) in ADMIN_IDS:
+        context.user_data['await_signal'] = True
+        query.edit_message_text("✏️ لطفاً سیگنال مورد نظر را ارسال کنید:")
 
 # گرفتن شماره تماس
 def contact_handler(update: Update, context: CallbackContext):
@@ -97,24 +105,56 @@ def name_handler(update: Update, context: CallbackContext):
     user_id = str(update.message.chat_id)
     if user_id in users and users[user_id].get("step") == "name":
         users[user_id]["name"] = update.message.text
+        users[user_id]["step"] = "product"
+        save_users(users)
+        update.message.reply_text("✅ نام شما ذخیره شد. لطفاً نام محصول/دسترسی مورد نظر خود را وارد کنید:")
+
+# گرفتن دسترسی/محصول
+def product_handler(update: Update, context: CallbackContext):
+    user_id = str(update.message.chat_id)
+    if user_id in users and users[user_id].get("step") == "product":
+        users[user_id]["product"] = update.message.text
         users[user_id]["step"] = "done"
         save_users(users)
-        update.message.reply_text("✅ نام شما ذخیره شد. از منوی زیر استفاده کنید:", reply_markup=MAIN_MENU)
+        update.message.reply_text("✅ دسترسی شما ثبت شد. از منوی زیر استفاده کنید:", reply_markup=MAIN_MENU)
 
 # ارسال پیام به تمام کاربران عضو شده
 def broadcast_signal(text: str):
-    for uid in users:
-        if users[uid].get("step") == "done":
-            try:
+    """ارسال پیام به تمام کاربران کامل ثبت‌نام‌شده که عضو کانال هستند."""
+    for uid, data in users.items():
+        if data.get("step") != "done":
+            continue
+        try:
+            member = updater.bot.get_chat_member(chat_id=OFFICIAL_CHANNEL_ID, user_id=int(uid))
+            if member.status in ["member", "administrator", "creator"]:
                 updater.bot.send_message(chat_id=int(uid), text=text)
-            except:
-                continue
+        except Exception as e:
+            logging.warning(f"Failed to broadcast to {uid}: {e}")
 
 # تابع هندل پیام‌های دریافتی از کانال
 def forward_from_channel(update: Update, context: CallbackContext):
     message = update.channel_post
     if message.chat_id == OFFICIAL_CHANNEL_ID:
         broadcast_signal(message.text)
+
+# هندل پیام سیگنال توسط ادمین
+def admin_signal_text_handler(update: Update, context: CallbackContext):
+    user_id = update.message.chat_id
+    if int(user_id) in ADMIN_IDS and context.user_data.get('await_signal'):
+        context.user_data['await_signal'] = False
+        broadcast_signal(update.message.text)
+        update.message.reply_text("✅ سیگنال به کاربران ارسال شد.", reply_markup=MAIN_MENU)
+
+# کامند پنل ادمین
+def admin_panel(update: Update, context: CallbackContext):
+    user_id = update.message.chat_id
+    if int(user_id) not in ADMIN_IDS:
+        update.message.reply_text("⛔️ دسترسی ندارید.")
+        return
+    kb = InlineKeyboardMarkup([
+        [InlineKeyboardButton("📢 ارسال سیگنال", callback_data='admin_send_signal')]
+    ])
+    update.message.reply_text("🔧 پنل مدیریت:", reply_markup=kb)
 
 # اجرای بات
 TOKEN = '8133412407:AAER0aKfU0nbLmhUfn5bn-9vBhzaXPekYAY'
@@ -127,6 +167,11 @@ dp.add_handler(CallbackQueryHandler(button_handler))
 dp.add_handler(MessageHandler(Filters.contact, contact_handler))
 dp.add_handler(MessageHandler(Filters.text & ~Filters.command, name_handler))
 dp.add_handler(ChannelPostHandler(forward_from_channel))
+
+# handlerهای جدید
+dp.add_handler(CommandHandler("panel", admin_panel))
+dp.add_handler(MessageHandler(Filters.text & ~Filters.command, product_handler))
+dp.add_handler(MessageHandler(Filters.text & ~Filters.command, admin_signal_text_handler))
 
 print("ربات آماده اجراست...")
 updater.start_polling()
