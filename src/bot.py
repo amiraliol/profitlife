@@ -1,7 +1,7 @@
 # تلگرام بات با ارسال خودکار سیگنال، ذخیره پروفایل و ارسال به مخاطبین عضو
 
 from telegram import Update, KeyboardButton, ReplyKeyboardMarkup, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext, CallbackQueryHandler, ChannelPostHandler
+from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext, CallbackQueryHandler, ChannelPostHandler, MessageFilter
 import logging, json, os, random, string
 
 # فعال کردن لاگ
@@ -20,16 +20,19 @@ def save_users(users):
 
 users = load_users()
 
-# شناسه کانال رسمی
-OFFICIAL_CHANNEL_ID = -1002443021723  # جایگزین شود با آیدی واقعی کانال شما
+# شناسه کانال رسمی (به‌صورت عددی)
+# مقدار را از متغیر محیطی OFFICIAL_CHANNEL_ID یا به‌صورت دستی تنظیم کنید
+OFFICIAL_CHANNEL_ID = int(os.getenv("OFFICIAL_CHANNEL_ID", "0"))  # ← آیدی عددی کانال خود را اینجا قرار دهید
 
 # شناسه ادمین ها (عددی)
 ADMIN_IDS = [123456789]  # آیدی عددی ادمین ها را اینجا قرار دهید
 
 # ساخت لینک یک‌بار مصرف برای عضویت در کانال
+CHANNEL_USERNAME = os.getenv("CHANNEL_USERNAME", "YOUR_CHANNEL")  # نام کاربری کانال بدون @
+
 def generate_invite_link(user_id):
     suffix = ''.join(random.choices(string.ascii_letters + string.digits, k=8))
-    return f"https://t.me/YOUR_CHANNEL?start={suffix}"
+    return f"https://t.me/{CHANNEL_USERNAME}?start={suffix}"
 
 # منوی اصلی به صورت دکمه
 MAIN_MENU = InlineKeyboardMarkup([
@@ -156,8 +159,26 @@ def admin_panel(update: Update, context: CallbackContext):
     ])
     update.message.reply_text("🔧 پنل مدیریت:", reply_markup=kb)
 
+# ---------- فیلتر وضعیت کاربر ----------
+
+
+class UserStepFilter(MessageFilter):
+    """فیلتر برای پیام‌هایی که کاربر در مرحلهٔ خاصی از فرایند ثبت‌نام است."""
+
+    def __init__(self, step_name: str):
+        self.step_name = step_name
+
+    def filter(self, message):  # type: ignore[override]
+        uid = str(message.chat_id)
+        return uid in users and users[uid].get("step") == self.step_name
+
+
+# نمونه فیلترها
+NAME_STEP_FILTER = UserStepFilter("name")
+PRODUCT_STEP_FILTER = UserStepFilter("product")
+
 # اجرای بات
-TOKEN = '8133412407:AAER0aKfU0nbLmhUfn5bn-9vBhzaXPekYAY'
+TOKEN = os.getenv("BOT_TOKEN", "YOUR_BOT_TOKEN")  # ← توکن ربات را اینجا قرار دهید یا از متغیر محیطی استفاده کنید
 updater = Updater(token=TOKEN, use_context=True)
 dp = updater.dispatcher
 
@@ -165,13 +186,15 @@ dp = updater.dispatcher
 dp.add_handler(CommandHandler("start", start))
 dp.add_handler(CallbackQueryHandler(button_handler))
 dp.add_handler(MessageHandler(Filters.contact, contact_handler))
-dp.add_handler(MessageHandler(Filters.text & ~Filters.command, name_handler))
-dp.add_handler(ChannelPostHandler(forward_from_channel))
 
-# handlerهای جدید
+# مرحله‌محور
+dp.add_handler(MessageHandler(NAME_STEP_FILTER, name_handler))
+dp.add_handler(MessageHandler(PRODUCT_STEP_FILTER, product_handler))
+
+# سایر
 dp.add_handler(CommandHandler("panel", admin_panel))
-dp.add_handler(MessageHandler(Filters.text & ~Filters.command, product_handler))
 dp.add_handler(MessageHandler(Filters.text & ~Filters.command, admin_signal_text_handler))
+dp.add_handler(ChannelPostHandler(forward_from_channel))
 
 print("ربات آماده اجراست...")
 updater.start_polling()
