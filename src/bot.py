@@ -168,6 +168,11 @@ dp.add_handler(MessageHandler(Filters.contact, contact_handler))
 dp.add_handler(MessageHandler(Filters.text & ~Filters.command, name_handler))
 dp.add_handler(ChannelPostHandler(forward_from_channel))
 
+# handlerهای جدید
+dp.add_handler(CommandHandler("panel", admin_panel))
+dp.add_handler(MessageHandler(Filters.text & ~Filters.command, product_handler))
+dp.add_handler(MessageHandler(Filters.text & ~Filters.command, admin_signal_text_handler))
+
 print("ربات آماده اجراست...")
 updater.start_polling()
 updater.idle()
