@@ -17,9 +17,9 @@ from telegram import (
     KeyboardButton,
     ReplyKeyboardRemove,
     ChatMember,
-    ChatMemberStatus,
     Message
 )
+from telegram.constants import ChatMemberStatus
 from telegram.ext import (
     Application, 
     CommandHandler, 
